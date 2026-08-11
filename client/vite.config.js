@@ -8,8 +8,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        // Your AWS EC2 Public IP
-        target: "http://54.179.87.232:5050",
+        // Local dev backend
+        target: "http://localhost:5050",
         changeOrigin: true,
         secure: false,
       },

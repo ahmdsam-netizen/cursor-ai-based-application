@@ -304,3 +304,78 @@ export async function getEventById(id) {
     return null;
   }
 }
+
+/**
+ * Fetch a list of distinct city names for a given country from Ticketmaster.
+ * Falls back to an empty array on error.
+ */
+const _tmCitiesCache = new Map();
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Fetch a list of distinct city names for a given country from Ticketmaster.
+ * Uses a short in-memory cache and retry/backoff to avoid 429 spike arrests.
+ */
+export async function getTicketmasterCities(countryCode) {
+  if (!countryCode) return [];
+  const key = String(countryCode).toUpperCase();
+  const now = Date.now();
+  const cached = _tmCitiesCache.get(key);
+  if (cached && cached.expiresAt > now) return cached.cities;
+
+  const apiKey = process.env.TICKETMASTER_API_KEY?.trim() || "";
+  if (!apiKey) return [];
+
+  const maxRetries = 3;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const search = new URLSearchParams();
+      search.set("apikey", apiKey);
+      // keep page smaller to reduce rate pressure
+      search.set("size", "100");
+      search.set("countryCode", key);
+      const url = `${TM_BASE}/events.json?${search.toString()}`;
+      const res = await fetch(url);
+
+      if (res.status === 429) {
+        // Respect Retry-After or use exponential backoff with jitter
+        const ra = res.headers.get("retry-after");
+        const raSec = ra ? Number(ra) : null;
+        const backoffMs = raSec ? raSec * 1000 : Math.min(1000 * 2 ** attempt, 5000);
+        const jitter = Math.floor(Math.random() * 300);
+        await sleep(backoffMs + jitter);
+        continue;
+      }
+
+      if (!res.ok) {
+        // For other HTTP errors, don't retry aggressively
+        console.warn("getTicketmasterCities: non-ok response", res.status);
+        return [];
+      }
+
+      const data = await res.json();
+      const events = data._embedded?.events || [];
+      const cities = new Set();
+      for (const e of events) {
+        const venue = e._embedded?.venues?.[0];
+        const city = venue?.city?.name;
+        if (city) cities.add(city);
+      }
+      const list = [...cities].sort((a, b) => a.localeCompare(b));
+      // cache for 1 hour
+      _tmCitiesCache.set(key, { cities: list, expiresAt: Date.now() + 60 * 60 * 1000 });
+      return list;
+    } catch (e) {
+      console.error("getTicketmasterCities error", e?.message || e);
+      // backoff on network errors
+      const backoffMs = Math.min(1000 * 2 ** attempt, 5000);
+      const jitter = Math.floor(Math.random() * 300);
+      await sleep(backoffMs + jitter);
+    }
+  }
+
+  return [];
+}

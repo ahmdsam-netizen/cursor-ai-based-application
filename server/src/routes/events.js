@@ -12,6 +12,7 @@ import {
   getNearestCatalogCity,
 } from "../data/sampleEvents.js";
 import { getCatalogEventsWithDates } from "../services/catalogEvents.js";
+import { useSampleEvents, getTicketmasterCities } from "../services/ticketmaster.js";
 
 const router = Router();
 
@@ -27,9 +28,17 @@ router.get("/geolocate", async (req, res) => {
   res.json(loc);
 });
 
-router.get("/cities", (req, res) => {
+router.get("/cities", async (req, res) => {
   const country = (req.query.country || "").toString().toUpperCase().slice(0, 2);
   if (!country) return res.json({ cities: [], country: "" });
+  if (!useSampleEvents()) {
+    try {
+      const cities = await getTicketmasterCities(country);
+      return res.json({ cities, country });
+    } catch (e) {
+      console.warn("Ticketmaster cities lookup failed", e?.message || e);
+    }
+  }
   const cities = getCitiesForCountry(country);
   res.json({ cities, country });
 });
