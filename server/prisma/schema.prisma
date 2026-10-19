@@ -1,0 +1,70 @@
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+model User {
+  id               String           @id @default(uuid())
+  email            String           @unique
+  passwordHash     String
+  name             String?          @default("")
+  interests        String[]         @default([])
+  favorites        String[]         @default([])
+  categoryViews    Json             @default("{}")
+  notifiedEventIds String[]         @default([])
+  role             String           @default("user")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  events           OrganizerEvent[]
+
+  @@map("users")
+}
+
+model OrganizerEvent {
+  id                    String                      @id
+  source                String                      @default("organizer")
+  name                  String
+  description           String                      @default("")
+  startDate             String
+  venue                 String                      @default("")
+  address               String                      @default("")
+  city                  String
+  stateCode             String                      @default("")
+  countryCode           String
+  lat                   Float
+  lng                   Float
+  category              String
+  image                 String                      @default("")
+  url                   String?
+  priceRange            String                      @default("paid")
+  organizer             String
+  structuredDescription Json?
+  embedding             Unsupported("vector(768)")?
+  createdBy             String
+  user                  User                        @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  createdAt             DateTime                    @default(now())
+  updatedAt             DateTime                    @updatedAt
+
+  @@index([city])
+  @@index([category])
+  @@index([createdBy])
+  @@map("organizer_events")
+}
+
+model EventStat {
+  id        String   @id @default(uuid())
+  eventId   String   @unique
+  views     Int      @default(0)
+  regionKey String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([regionKey])
+  @@map("event_stats")
+}
