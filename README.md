@@ -49,27 +49,51 @@ A full-stack, AI-powered application to discover and manage events near you or a
 
 ---
 
-## Setup & Installation
+## Quick Start (Run with Docker in One Command) 🚀
 
-### 1. Clone & Install Dependencies
+You can spin up the full application (**PostgreSQL with pgvector**, **Node.js Express backend**, and **React frontend**) with a single command:
+
+```bash
+# 1. (Optional) Copy environment template and add your GEMINI_API_KEY
+cp .env.example .env
+
+# 2. Build and start all services in one command
+docker compose up --build
+```
+
+That's it! Once started:
+- 🌐 **Web App (Frontend)**: [http://localhost:5173](http://localhost:5173)
+- 🔌 **API Server**: [http://localhost:5050](http://localhost:5050)
+- 🩺 **API Health Check**: [http://localhost:5050/api/health](http://localhost:5050/api/health)
+- 🗄️ **PostgreSQL (pgvector)**: `localhost:5432` (db: `event_finder`, user: `postgres`, password: `postgrespassword`)
+
+To stop all services:
+```bash
+docker compose down
+```
+
+---
+
+## Local Development (Without Full Docker)
+
+If you prefer running the code locally with Vite hot-reloading:
+
+### 1. Install Dependencies
 
 From the project root:
 
 ```bash
-# Install root, server, and client dependencies
 npm install
 npm run install:all
 ```
 
 ### 2. Start PostgreSQL with `pgvector`
 
-Use the provided Docker Compose configuration:
+Use Docker Compose to run only the database:
 
 ```bash
-docker compose up -d
+docker compose up -d postgres
 ```
-
-This starts a PostgreSQL 16 container with `pgvector` pre-installed on port `5432` (`postgres:postgres@localhost:5432/eventfinder`).
 
 ### 3. Configure Server Environment
 
@@ -79,26 +103,9 @@ Copy `server/.env.example` to `server/.env`:
 cp server/.env.example server/.env
 ```
 
-Adjust variables as needed:
-
-```env
-PORT=5050
-DATABASE_URL="postgresql://postgres:postgres@localhost:5432/eventfinder?schema=public"
-JWT_SECRET="your-super-secret-jwt-key"
-
-# AI Assistant & Embeddings (Google AI Studio)
-GEMINI_API_KEY="your-gemini-api-key"
-
-# Optional External Data
-TICKETMASTER_API_KEY=""
-USE_SAMPLE_EVENTS=true
-
-CLIENT_ORIGIN="http://localhost:5173"
-```
+Adjust variables as needed (e.g., adding `GEMINI_API_KEY` for AI assistant capabilities).
 
 ### 4. Push Prisma Schema & Generate Client
-
-Initialize the database schema and pgvector extension:
 
 ```bash
 cd server
@@ -107,11 +114,7 @@ npx prisma generate
 cd ..
 ```
 
----
-
-## Running Locally
-
-### Option A: Run Everything Concurrently
+### 5. Start Frontend and Backend Concurrently
 
 From the root directory:
 
@@ -119,19 +122,8 @@ From the root directory:
 npm run dev
 ```
 
-### Option B: Run in Separate Terminals
-
-- **Terminal 1 (Backend API)**:
-  ```bash
-  cd server && npm run dev
-  ```
-- **Terminal 2 (Frontend Client)**:
-  ```bash
-  cd client && npm run dev
-  ```
-
 - **Web App**: [http://localhost:5173](http://localhost:5173)
-- **API Health**: [http://localhost:5050/api/health](http://localhost:5050/api/health)
+- **Backend API**: [http://localhost:5050/api/health](http://localhost:5050/api/health)
 
 > [!NOTE]
 > Default server port is **5050** to avoid conflicts with macOS AirPlay on port 5000. If changed, ensure `client/vite.config.ts` proxy target matches `PORT`.
@@ -185,9 +177,13 @@ npm run start --prefix server
 
 ```
 cursor-ai-based-application/
-├── docker-compose.yml              # PostgreSQL + pgvector container definition
+├── docker-compose.yml              # Multi-container orchestration (PostgreSQL + Server + Client)
+├── Dockerfile                      # Standalone full-stack multi-stage Docker build
+├── .env.example                    # Global environment template for Docker Compose
 ├── package.json                    # Workspace orchestration scripts
 ├── server/
+│   ├── Dockerfile                  # Node.js backend Docker container
+│   ├── docker-entrypoint.sh        # Automated Prisma push and startup script
 │   ├── prisma/
 │   │   └── schema.prisma           # Prisma schema with pgvector extension & models
 │   ├── src/
@@ -203,9 +199,11 @@ cursor-ai-based-application/
 │   │   │   └── ticketmaster.ts     # Ticketmaster Discovery API integration
 │   │   ├── types/                  # TypeScript declaration files
 │   │   ├── env.ts                  # Validated environment configuration
-│   │   └── index.ts                # Application entry point
+│   │   └── index.ts                # Application entry point & static SPA fallback
 │   └── tsconfig.json               # Server TypeScript configuration
 └── client/
+    ├── Dockerfile                  # Frontend Vite build + Nginx container
+    ├── nginx.conf                  # Nginx reverse proxy configuration
     ├── src/
     │   ├── api/client.ts           # Typed API client
     │   ├── components/             # EventCard, EventsMap, Layout (TSX)

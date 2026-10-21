@@ -1,3 +1,4 @@
+import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
@@ -19,9 +20,26 @@ const app = express();
 /** Default 5050 — macOS often uses 5000 for AirPlay, which breaks local APIs */
 const PORT = Number(process.env.PORT) || 5050;
 
+const defaultOrigins = [
+  "https://off-by-one-red.vercel.app",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:80",
+  "http://localhost",
+];
+const clientOrigin = process.env.CLIENT_ORIGIN;
+const allowedOrigins = clientOrigin && !defaultOrigins.includes(clientOrigin)
+  ? [...defaultOrigins, clientOrigin]
+  : defaultOrigins;
+
 app.use(
   cors({
-    origin: ["https://off-by-one-red.vercel.app" , "http://localhost:5173"] ,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin) || origin.startsWith("http://localhost:")) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     credentials: true,
@@ -36,6 +54,23 @@ app.use("/api/user", userRoutes);
 app.use("/api/events", eventsRoutes);
 app.use("/api/assistant", assistantRoutes);
 app.use("/api/organizer", organizerRoutes);
+
+// Optional static frontend serving if client/dist exists
+const potentialDistPaths = [
+  path.resolve(__dirname, "../../client/dist"),
+  path.resolve(__dirname, "../client/dist"),
+  path.resolve(process.cwd(), "client/dist"),
+  path.resolve(process.cwd(), "../client/dist"),
+];
+const clientDistPath = potentialDistPaths.find((p) => fs.existsSync(p));
+
+if (clientDistPath) {
+  app.use(express.static(clientDistPath));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) return next();
+    res.sendFile(path.join(clientDistPath, "index.html"));
+  });
+}
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
